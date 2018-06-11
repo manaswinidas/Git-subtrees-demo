@@ -6,7 +6,7 @@ from django.shortcuts import render, redirect
 from django.conf import settings
 from open_humans.models import OpenHumansMember
 from .models import DataSourceMember
-from .helpers import get_datasource_file, check_update
+from .helpers import get_github_file, check_update
 from datauploader.tasks import process_github
 from ohapi import api
 import arrow
@@ -23,7 +23,7 @@ def index(request):
         return redirect('/dashboard')
     else:
         context = {'client_id': settings.OPENHUMANS_CLIENT_ID,
-                   'redirect_uri': '{}/complete'.format(settings.OPENHUMANS_APP_BASE_URL),
+                #    'redirect_uri': '{}/complete'.format(settings.OPENHUMANS_APP_BASE_URL),
                    'oh_proj_page': settings.OH_ACTIVITY_PAGE}
 
         return render(request, 'main/index.html', context=context)
@@ -45,9 +45,18 @@ def complete(request):
         login(request, user,
               backend='django.contrib.auth.backends.ModelBackend')
 
+        # Initiate a data transfer task, then render `complete.html`.
+        # xfer_to_open_humans.delay(oh_id=oh_member.oh_id)
         context = {'oh_id': oh_member.oh_id,
                    'oh_proj_page': settings.OH_ACTIVITY_PAGE}
         if not hasattr(oh_member, 'datasourcemember'):
+            github_url = ('https://github.com/login/oauth/authorize?'
+                         'response_type=code&scope=activity location&'
+                         'redirect_uri={}&client_id={}').format(
+                            settings.GITHUB_REDIRECT_URI,
+                            settings.GITHUB_CLIENT_ID)
+            logger.debug(github_url)
+            context['github_url'] = github_url
             return render(request, 'main/complete.html',
                           context=context)
         return redirect("/dashboard")
@@ -59,22 +68,28 @@ def complete(request):
 def dashboard(request):
     if request.user.is_authenticated:
         if hasattr(request.user.oh_member, 'datasourcemember'):
-            datasource_member = request.user.oh_member.datasourcemember
-            download_file = get_datasource_file(request.user.oh_member)
+            github_member = request.user.oh_member.datasourcemember
+            download_file = get_github_file(request.user.oh_member)
             if download_file == 'error':
                 logout(request)
                 return redirect("/")
             connect_url = ''
-            allow_update = check_update(datasource_member)
+            allow_update = check_update(github_member)
         else:
             allow_update = False
-            datasource_member = ''
+            github_member = ''
             download_file = ''
+            connect_url = ('https://github.com/login/oauth/authorize?'
+                           'response_type=code&scope=activity location&'
+                           'redirect_uri={}&client_id={}').format(
+                            settings.GITHUB_REDIRECT_URI,
+                            settings.GITHUB_CLIENT_ID)
       
         context = {
             'oh_member': request.user.oh_member,
-            'datasource_member': datasource_member,
+            'github_member': github_member,
             'download_file': download_file,
+            'connect_url': connect_url,
             'allow_update': allow_update
         }
         return render(request, 'main/dashboard.html',
@@ -82,19 +97,19 @@ def dashboard(request):
     return redirect("/")
 
 
-def remove_datasource(request):
+def remove_github(request):
     if request.method == "POST" and request.user.is_authenticated:
         try:
             oh_member = request.user.oh_member
             api.delete_file(oh_member.access_token,
                             oh_member.oh_id,
-                            file_basename="dummy-data.json")
-            messages.info(request, "Your test account has been removed")
-            datasource_account = request.user.oh_member.datasourcemember
-            datasource_account.delete()
+                            file_basename="github-data.json")
+            messages.info(request, "Your Github account has been removed")
+            github_account = request.user.oh_member.datasourcemember
+            github_account.delete()
         except:
-            datasource_account = request.user.oh_member.datasourcemember
-            datasource_account.delete()
+            github_account = request.user.oh_member.datasourcemember
+            github_account.delete()
             messages.info(request, ("Something went wrong, please"
                           "re-authorize us on Open Humans"))
             logout(request)
@@ -105,58 +120,95 @@ def remove_datasource(request):
 def update_data(request):
     if request.method == "POST" and request.user.is_authenticated:
         oh_member = request.user.oh_member
-        process_source.delay(oh_member.oh_id)
-        datasource_member = oh_member.datasourcemember
-        datasource_member.last_submitted = arrow.now().format()
-        datasource_member.save()
+        process_github.delay(oh_member.oh_id)
+        github_member = oh_member.datasourcemember
+        github_member.last_submitted = arrow.now().format()
+        github_member.save()
         messages.info(request,
-                      ("An update of your data has been started! "
+                      ("An update of your Github data has been started! "
                        "It can take some minutes before the first data is "
                        "available. Reload this page in a while to find your "
                        "data"))
         return redirect('/dashboard')
 
 
-def datasource_complete(request):
+def github_complete(request):
     """
-    Receive user from data source. Store data, start processing.
+    Receive user from Github source. Store data, start processing.
     """
-    logger.debug("Received user returning from data source.")
+    logger.debug("Received user returning from Github.")
     # Exchange code for token.
     # This creates an OpenHumansMember and associated user account.
+    code = request.GET.get('code', '')
     ohmember = request.user.oh_member
-    datasource_member = get_datasource_member(ohmember=ohmember)
+    github_member = github_code_to_member(code=code, ohmember=ohmember)
 
-    if datasource_member:
-        messages.info(request, "Your data source account has been connected")
-        process_source.delay(ohmember.oh_id)
+    if github_member:
+        messages.info(request, "Your Github account has been connected")
+        process_github.delay(ohmember.oh_id)
         return redirect('/dashboard')
 
     logger.debug('Invalid code exchange. User returned to starting page.')
     messages.info(request, ("Something went wrong, please try connecting your "
-                            "data source account again"))
+                            "Github account again"))
     return redirect('/dashboard')
 
 
-def get_datasource_member(ohmember):
+def github_code_to_member(code, ohmember):
     """
-    Edit this function to create a data source member on return from
-    authentication with their API.
+    Exchange code for token, use this to create and return Github members.
+    If a matching github exists, update and return it.
     """
-    print("Returning from data source authentication and creating user model.")
+    print("FOOBAR.")
+    if settings.GITUHB_CLIENT_SECRET and \
+       settings.GITHUB_CLIENT_ID and code:
+        data = {
+            'grant_type': 'authorization_code',
+            'redirect_uri': settings.GITHUB_REDIRECT_URI,
+            'code': code,
+            'client_id': settings.GITHUB_CLIENT_ID,
+            'client_secret': settings.GITHUB_CLIENT_SECRET
+        }
+        req = requests.post(
+            'https://github.com/login/oauth/access_token'.format(
+                settings.OPENHUMANS_OH_BASE_URL),
+            data=data
+        )
+        data = req.json()
+        print(data)
+        if 'access_token' in data:
+            try:
+                github_member = DataSourceMember.objects.get(
+                    github_id=data['user_id'])
+                logger.debug('Member {} re-authorized.'.format(
+                    github_member.github_id))
+                github_member.access_token = data['access_token']
+                github_member.refresh_token = data['refresh_token']
+                github_member.token_expires = DataSourceMember.get_expiration(
+                    data['expires_in'])
+                print('got old github member')
+            except DataSourceMember.DoesNotExist:
+                github_member = DataSourceMember(
+                    github_id=data['user_id'],
+                    access_token=data['access_token'],
+                    refresh_token=data['refresh_token'],
+                    token_expires=DataSourceMember.get_expiration(
+                        data['expires_in'])
+                        )
+                github_member.user = ohmember
+                logger.debug('Member {} created.'.format(data['user_id']))
+                print('make new github member')
+            github_member.save()
 
-    OpenHumansMember
+            return github_member
 
-    try:
-        datasource_member = DataSourceMember.objects.get(user=ohmember)
-        print('got old data source member')
-    except DataSourceMember.DoesNotExist:
-        datasource_member = DataSourceMember(user=datasource_member)
-        print('make new data source member')
-    datasource_member.save()
-
-    return datasource_member
-
+        elif 'error' in req.json():
+            logger.debug('Error in token exchange: {}'.format(req.json()))
+        else:
+            logger.warning('Neither token nor error info in Github response!')
+    else:
+        logger.error('GITHUB_CLIENT_SECRET or code are unavailable')
+    return None
 
 
 def oh_code_to_member(code):
