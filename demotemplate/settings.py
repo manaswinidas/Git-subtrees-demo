@@ -75,9 +75,9 @@ if REMOTE is True:
         },
         safety_threshold=5)
 
-# This creates a Realm called "source" that allows 60 requests per minute maximum.
+# This creates a Realm called "github" that allows 150 requests per minute maximum.
 rr = RespectfulRequester()
-rr.register_realm("github", max_requests=60, timespan=60)
+rr.register_realm("github", max_requests=150, timespan=3600)
 
 # Applications installed
 INSTALLED_APPS = [
