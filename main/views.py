@@ -160,7 +160,7 @@ def github_code_to_member(code, ohmember):
     If a matching github exists, update and return it.
     """
     print("FOOBAR.")
-    if settings.GITUHB_CLIENT_SECRET and \
+    if settings.GITHUB_CLIENT_SECRET and \
        settings.GITHUB_CLIENT_ID and code:
         data = {
             'grant_type': 'authorization_code',
@@ -169,34 +169,33 @@ def github_code_to_member(code, ohmember):
             'client_id': settings.GITHUB_CLIENT_ID,
             'client_secret': settings.GITHUB_CLIENT_SECRET
         }
-        req = requests.post(
-            'https://github.com/login/oauth/access_token'.format(
-                settings.OPENHUMANS_OH_BASE_URL),
-            data=data
-        )
+        # Add headers telling Github's API that we want a JSON response (instead of plaintext)
+        headers = {'Accept': 'application/json'}
+        # Get the access_token from the code
+        req = requests.post('https://github.com/login/oauth/access_token',
+                            data=data, headers=headers)
         data = req.json()
         print(data)
+        # Now that we have a token, let's get the users "profile" back with their token:
+        auth_string = 'token {}'.format(data['access_token'])
+        token_header = {'Authorization': auth_string}
+        user_data_r = requests.get('https://api.github.com/user', headers=token_header)
+        user_data = user_data_r.json()
+        print(user_data)
         if 'access_token' in data:
             try:
                 github_member = DataSourceMember.objects.get(
-                    github_id=data['user_id'])
+                    github_id=user_data['id'])
                 logger.debug('Member {} re-authorized.'.format(
                     github_member.github_id))
                 github_member.access_token = data['access_token']
-                github_member.refresh_token = data['refresh_token']
-                github_member.token_expires = DataSourceMember.get_expiration(
-                    data['expires_in'])
                 print('got old github member')
             except DataSourceMember.DoesNotExist:
                 github_member = DataSourceMember(
-                    github_id=data['user_id'],
-                    access_token=data['access_token'],
-                    refresh_token=data['refresh_token'],
-                    token_expires=DataSourceMember.get_expiration(
-                        data['expires_in'])
-                        )
+                    github_id=user_data['id'],
+                    access_token=data['access_token'])
                 github_member.user = ohmember
-                logger.debug('Member {} created.'.format(data['user_id']))
+                logger.debug('Member {} created.'.format(data['access_token']))
                 print('make new github member')
             github_member.save()
 

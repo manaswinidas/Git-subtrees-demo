@@ -16,6 +16,10 @@ class DataSourceMember(models.Model):
     """
     user = models.OneToOneField(OpenHumansMember, on_delete=models.CASCADE)
     # Your other fields should go below here
+    github_id = models.CharField(max_length=255, unique=True, null=True)
+    access_token = models.CharField(max_length=512, null=True)
+    scope = models.CharField(max_length=512, null=True)
+    token_type = models.CharField(max_length=512, null=True)
     last_updated = models.DateTimeField(
                             default=(arrow.now() - timedelta(days=7)).format())
     last_submitted = models.DateTimeField(
