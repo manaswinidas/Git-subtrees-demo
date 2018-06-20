@@ -43,51 +43,58 @@ def process_github(oh_id):
                             client_secret=settings.GITHUB_CLIENT_SECRET)
     update_github(oh_member, github_data)
 
-@shared_task
-def make_request_respectful_get(url, realms, **kwargs):
-    r = rr.get(url=url, realms=realms, **kwargs)
-    logger.debug('Request completed. Response: {}'.format(r.text))
-
-
-def update_github(oh_member, github_data):
+def update_github(oh_member, github_access_token, github_data):
     try:
-        # 1. Set start and end times for API calls- may have to loop over short periods.
-        # 2. Get data from API using requests_respectful:
-        
-        # r = rr.get(url=url, realms=realms, **kwargs)
-        # logger.debug('Request completed. Response: {}'.format(r.text))
-        # source_data += r.json()
-
+        start_date = get_start_date(github_data, github_access_token)
+        start_date = datetime.strptime(start_date, "%Y%m%d")
+        start_date_iso = start_date.isocalendar()[:2]
+        github_data = remove_partial_data(github_data, start_date_iso)
+        stop_date_iso = (datetime.utcnow()
+                         + timedelta(days=7)).isocalendar()[:2]
+        while start_date_iso != stop_date_iso:
+            print('processing {}-{} for member {}'.format(start_date_iso[0],
+                                                          start_date_iso[1],
+                                                          oh_member.oh_id))
+            query = GITHUB_API_STORY + \
+                     '/{0}-W{1}?trackPoints=true&access_token={2}'.format(
+                        start_date_iso[0],
+                        start_date_iso[1],
+                        github_access_token
+                     )
+            response = rr.get(query, realms=['github'])
+            github_data += response.json()
+            start_date = start_date + timedelta(days=7)
+            start_date_iso = start_date.isocalendar()[:2]
         print('successfully finished update for {}'.format(oh_member.oh_id))
-        datasource_member = oh_member.datasourcemember
-        datasource_member.last_updated = arrow.now().format()
-        datasource_member.save()
+        github_member = oh_member.datasourcemember
+        github_member.last_updated = arrow.now().format()
+        github_member.save()
     except RequestsRespectfulRateLimitedError:
         logger.debug(
             'requeued processing for {} with 60 secs delay'.format(
                 oh_member.oh_id)
                 )
-        process_source.apply_async(args=[oh_member.oh_id], countdown=61)
+        process_github.apply_async(args=[oh_member.oh_id], countdown=61)
     finally:
-        replace_datasource(oh_member, source_data)
+        replace_github(oh_member, github_data)
 
 
-def replace_datasource(oh_member, source_data):
+def replace_github(oh_member, github_data):
     # delete old file and upload new to open humans
     tmp_directory = tempfile.mkdtemp()
     metadata = {
         'description':
-        'Dummy data for demo.',
+        'Github activity feed, repository contents and stars data.',
         'tags': ['demo', 'dummy', 'test'],
         'updated_at': str(datetime.utcnow()),
         }
-    out_file = os.path.join(tmp_directory, 'dummy-data.json')
+    out_file = os.path.join(tmp_directory, 'github-data.json')
     logger.debug('deleted old file for {}'.format(oh_member.oh_id))
     api.delete_file(oh_member.access_token,
                     oh_member.oh_id,
                     file_basename="dummy-data.json")
     with open(out_file, 'w') as json_file:
-        json.dump(source_data, json_file)
+        json.dump(github_data, json_file)
         json_file.flush()
     api.upload_aws(out_file, metadata,
                    oh_member.access_token,
@@ -95,10 +102,28 @@ def replace_datasource(oh_member, source_data):
     logger.debug('uploaded new file for {}'.format(oh_member.oh_id))
 
 
-def get_start_date(source_data):
-    # This function should get a start date for data
-    # retrieval, by using the data source API.
-    pass
+def remove_partial_data(github_data, start_date):
+    remove_indexes = []
+    for i, element in enumerate(github_data):
+        element_date = datetime.strptime(
+                                element['date'], "%Y%m%d").isocalendar()[:2]
+        if element_date == start_date:
+            remove_indexes.append(i)
+    for index in sorted(remove_indexes, reverse=True):
+        del github_data[index]
+    return github_data
+
+
+def get_start_date(github_data, github_access_token):
+    if github_data == []:
+        url = GITHUB_API_BASE + "/user/profile?access_token={}".format(
+                                        github_access_token
+        )
+        response = rr.get(url, wait=True, realms=['github'])
+        return response.json()['profile']['firstDate']
+    else:
+        return github_data[-1]['date']
+
 
 def get_existing_github(oh_access_token):
     member = api.exchange_oauth2_member(oh_access_token)
