@@ -36,7 +36,7 @@ def process_github(oh_id):
     oh_access_token = oh_member.get_access_token(
                             client_id=settings.OPENHUMANS_CLIENT_ID,
                             client_secret=settings.OPENHUMANS_CLIENT_SECRET)
-    github_data = get_existing_data(oh_access_token)
+    github_data = get_existing_github(oh_access_token)
     github_member = oh_member.datasourcemember
     github_access_token = github_member.get_access_token(
                             client_id=settings.GITHUB_CLIENT_ID,
