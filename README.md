@@ -25,7 +25,7 @@ The settings for `requests_respectful` can be found in `demotemplate/settings.py
 
 ```
 rr = RespectfulRequester()
-rr.register_realm("github", max_requests=60, timespan=60)
+rr.register_realm("github", max_requests=5000, timespan=3600)
 ```
 By registering a `realm` we set up a namespace for the github requests and specify that at max. 60 requests per 60 seconds can be made. If we would make an additional request this would yield a `RequestsRespectfulRateLimitedError`.
 
