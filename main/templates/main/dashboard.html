@@ -35,7 +35,7 @@
           thus we limit the frequency with which you can request updates.</p>
         {%endif%}
         <br/>
-        <p>You want do remove your current Github account and maybe replace with a different one? Click below to remove your current Github account</p>
+        <p>You want to remove your current Github account and maybe replace with a different one? Click below to remove your current Github account</p>
         <form action="{% url 'remove_github' %}" method="post">
           {% csrf_token %}
           <input type="submit"
