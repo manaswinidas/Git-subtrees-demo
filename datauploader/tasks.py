@@ -21,10 +21,10 @@ import arrow
 # Set up logging.
 logger = logging.getLogger(__name__)
 
-GITHUB_API_BASE = 'https://api.github.com'
-GITHUB_API_STORY = GITHUB_API_BASE + '/feeds'
-GITHUB_API_REPO = GITHUB_API_BASE + '/user/repos'
-GITHUB_API_STARS = GITHUB_API_BASE + '/user/starred'
+GITHUB_API_BASE = 'https://api.github.com/v4/GraphQL'
+# GITHUB_API_STORY = GITHUB_API_BASE + '/feeds'
+# GITHUB_API_REPO = GITHUB_API_BASE + '/user/repos'
+# GITHUB_API_STARS = GITHUB_API_BASE + '/user/starred'
 
 @shared_task
 def process_github(oh_id):
@@ -41,30 +41,133 @@ def process_github(oh_id):
     github_access_token = github_member.get_access_token(
                             client_id=settings.GITHUB_CLIENT_ID,
                             client_secret=settings.GITHUB_CLIENT_SECRET)
-    update_github(oh_member, github_data)
+
+    update_github(oh_member, github_access_token, github_data)
 
 def update_github(oh_member, github_access_token, github_data):
-    try:
-        start_date = get_start_date(github_data, github_access_token)
-        start_date = datetime.strptime(start_date, "%Y%m%d")
-        start_date_iso = start_date.isocalendar()[:2]
+    print(github_data)
+    try: 
+        start_date_iso = arrow.get(get_start_date(github_data, github_access_token)).datetime.isocalendar()
+        print(start_date_iso)
+        print(type(start_date_iso))
         github_data = remove_partial_data(github_data, start_date_iso)
         stop_date_iso = (datetime.utcnow()
-                         + timedelta(days=7)).isocalendar()[:2]
+                         + timedelta(seconds=1)).isocalendar()
         while start_date_iso != stop_date_iso:
-            print('processing {}-{} for member {}'.format(start_date_iso[0],
-                                                          start_date_iso[1],
-                                                          oh_member.oh_id))
-            query = GITHUB_API_STORY + \
-                     '/{0}-W{1}?trackPoints=true&access_token={2}'.format(
-                        start_date_iso[0],
-                        start_date_iso[1],
-                        github_access_token
-                     )
-            response = rr.get(query, realms=['github'])
-            github_data += response.json()
-            start_date = start_date + timedelta(days=7)
-            start_date_iso = start_date.isocalendar()[:2]
+            print(f'processing {oh_member.oh_id}-{oh_member.oh_id} for member {oh_member.oh_id}')
+            # query = GITHUB_API_STORY + \
+            #          '/{0}-W{1}?trackPoints=true&access_token={2}'.format(
+            #             start_date_iso,
+            #             stop_date_iso,
+            #             github_access_token
+            #          )
+            query= query { 
+    user(login:"manaswinidas"){
+    url
+    id
+    email
+    bio
+    company
+    companyHTML
+    pullRequests{
+      totalCount
+    }
+    gists {
+    totalCount
+  }
+    company
+    repositoriesContributedTo(first:10){
+      totalCount
+      edges{
+        node{
+          name
+          id
+          forkCount
+          issues(first:5){
+            totalCount
+            edges{
+              node{
+                author{
+                  resourcePath
+                }
+                assignees{
+                  totalCount
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    repositories(isFork:false, first:10){
+      totalCount
+      edges{
+        node{
+          name
+          id
+          forkCount
+          issues(first:10){
+            totalCount
+            edges{
+              node{
+                author{
+                  resourcePath
+                }
+                assignees{
+                  totalCount
+                }
+                participants{
+                  totalCount
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    forked: repositories(isFork:true, first:10){
+      totalCount
+        edges{
+          node{
+            name
+            id
+            forkCount
+          }
+        }
+      }
+    starredRepositories(first:10) {
+      totalCount
+      edges {
+        node {
+          name
+          id
+          forkCount
+        }
+      }
+    }
+    following(first:10){
+      totalCount
+      nodes{
+        name
+        id
+        url
+      }
+    }
+    followers(first:10) {
+      edges {
+        node {
+          name
+          id
+          url
+        }
+      }
+    } 
+  }
+}         
+        response = rr.get(query, realms=['github'])
+        github_data += response.json()
+
+        
         print('successfully finished update for {}'.format(oh_member.oh_id))
         github_member = oh_member.datasourcemember
         github_member.last_updated = arrow.now().format()
@@ -74,7 +177,7 @@ def update_github(oh_member, github_access_token, github_data):
             'requeued processing for {} with 60 secs delay'.format(
                 oh_member.oh_id)
                 )
-        process_github.apply_async(args=[oh_member.oh_id], countdown=61)
+        process_github.apply_async(args=[oh_member.oh_id], countdown=61)  
     finally:
         replace_github(oh_member, github_data)
 
@@ -115,12 +218,14 @@ def remove_partial_data(github_data, start_date):
 
 
 def get_start_date(github_data, github_access_token):
-    if github_data == []:
-        url = GITHUB_API_BASE + "/user/profile?access_token={}".format(
+    if not github_data:
+        url = GITHUB_API_BASE + "/user?access_token={}".format(
                                         github_access_token
         )
         response = rr.get(url, wait=True, realms=['github'])
-        return response.json()['profile']['firstDate']
+        reso = response.json()
+        print(reso)
+        return reso['created_at']
     else:
         return github_data[-1]['date']
 
