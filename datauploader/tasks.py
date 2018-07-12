@@ -21,7 +21,7 @@ import arrow
 # Set up logging.
 logger = logging.getLogger(__name__)
 
-GITHUB_API_BASE = 'https://api.github.com/v4/GraphQL'
+GITHUB_GRAPHQL_BASE = 'https://api.github.com/graphql'
 # GITHUB_API_STORY = GITHUB_API_BASE + '/feeds'
 # GITHUB_API_REPO = GITHUB_API_BASE + '/user/repos'
 # GITHUB_API_STARS = GITHUB_API_BASE + '/user/starred'
@@ -44,6 +44,7 @@ def process_github(oh_id):
 
     update_github(oh_member, github_access_token, github_data)
 
+
 def update_github(oh_member, github_access_token, github_data):
     print(github_data)
     try: 
@@ -61,112 +62,120 @@ def update_github(oh_member, github_access_token, github_data):
             #             stop_date_iso,
             #             github_access_token
             #          )
-            query= query { 
-    user(login:"manaswinidas"){
-    url
-    id
-    email
-    bio
-    company
-    companyHTML
-    pullRequests{
-      totalCount
-    }
-    gists {
-    totalCount
-  }
-    company
-    repositoriesContributedTo(first:10){
-      totalCount
-      edges{
-        node{
-          name
-          id
-          forkCount
-          issues(first:5){
-            totalCount
-            edges{
-              node{
-                author{
-                  resourcePath
-                }
-                assignees{
+            query = """ 
+              { 
+                user(login:"manaswinidas"){
+                url
+                id
+                email
+                bio
+                company
+                companyHTML
+                pullRequests{
                   totalCount
                 }
+                gists {
+                totalCount
               }
-            }
-          }
-        }
-      }
-    }
-    repositories(isFork:false, first:10){
-      totalCount
-      edges{
-        node{
-          name
-          id
-          forkCount
-          issues(first:10){
-            totalCount
-            edges{
-              node{
-                author{
-                  resourcePath
-                }
-                assignees{
+                company
+                repositoriesContributedTo(first:10){
                   totalCount
+                  edges{
+                    node{
+                      name
+                      id
+                      forkCount
+                      issues(first:5){
+                        totalCount
+                        edges{
+                          node{
+                            author{
+                              resourcePath
+                            }
+                            assignees{
+                              totalCount
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
-                participants{
+                repositories(isFork:false, first:10){
                   totalCount
+                  edges{
+                    node{
+                      name
+                      id
+                      forkCount
+                      issues(first:10){
+                        totalCount
+                        edges{
+                          node{
+                            author{
+                              resourcePath
+                            }
+                            assignees{
+                              totalCount
+                            }
+                            participants{
+                              totalCount
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
+                forked: repositories(isFork:true, first:10){
+                  totalCount
+                    edges{
+                      node{
+                        name
+                        id
+                        forkCount
+                      }
+                    }
+                  }
+                starredRepositories(first:10) {
+                  totalCount
+                  edges {
+                    node {
+                      name
+                      id
+                      forkCount
+                    }
+                  }
+                }
+                following(first:10){
+                  totalCount
+                  nodes{
+                    name
+                    id
+                    url
+                  }
+                }
+                followers(first:10) {
+                  edges {
+                    node {
+                      name
+                      id
+                      url
+                    }
+                  }
+                } 
               }
-            }
-          }
-        }
-      }
-    }
-    forked: repositories(isFork:true, first:10){
-      totalCount
-        edges{
-          node{
-            name
-            id
-            forkCount
-          }
-        }
-      }
-    starredRepositories(first:10) {
-      totalCount
-      edges {
-        node {
-          name
-          id
-          forkCount
-        }
-      }
-    }
-    following(first:10){
-      totalCount
-      nodes{
-        name
-        id
-        url
-      }
-    }
-    followers(first:10) {
-      edges {
-        node {
-          name
-          id
-          url
-        }
-      }
-    } 
-  }
-}         
-        response = rr.get(query, realms=['github'])
+            }      
+            """
+        # Construct the authorization headers for github
+        auth_string = "Bearer " + github_access_token 
+        auth_header = {"Authorization": auth_string}
+        # Make the request via POST, add query string & auth headers
+        response = rr.post(GITHUB_GRAPHQL_BASE, json={'query': query}, headers=auth_header, realms=['github'])
+        # Debug print
+        print(response.json())
+        
         github_data += response.json()
-
         
         print('successfully finished update for {}'.format(oh_member.oh_id))
         github_member = oh_member.datasourcemember

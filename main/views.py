@@ -146,7 +146,7 @@ def github_complete(request):
 
     if github_member:
         messages.info(request, "Your Github account has been connected")
-        # process_github.delay(ohmember.oh_id)
+        process_github.delay(ohmember.oh_id)
         return redirect('/dashboard')
 
     logger.debug('Invalid code exchange. User returned to starting page.')
