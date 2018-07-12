@@ -22,6 +22,7 @@ import arrow
 logger = logging.getLogger(__name__)
 
 GITHUB_GRAPHQL_BASE = 'https://api.github.com/graphql'
+GITHUB_API_BASE = 'https://api.github.com'
 # GITHUB_API_STORY = GITHUB_API_BASE + '/feeds'
 # GITHUB_API_REPO = GITHUB_API_BASE + '/user/repos'
 # GITHUB_API_STARS = GITHUB_API_BASE + '/user/starred'
