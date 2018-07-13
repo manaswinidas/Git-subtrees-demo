@@ -51,7 +51,7 @@ def complete(request):
                    'oh_proj_page': settings.OH_ACTIVITY_PAGE}
         if not hasattr(oh_member, 'datasourcemember'):
             github_url = ('https://github.com/login/oauth/authorize?'
-                         'response_type=code&scope=activity location&'
+                         'response_type=code&scope=repo user&'
                          'redirect_uri={}&client_id={}').format(
                             settings.GITHUB_REDIRECT_URI,
                             settings.GITHUB_CLIENT_ID)
@@ -81,7 +81,7 @@ def dashboard(request):
             github_member = ''
             download_file = ''
             connect_url = ('https://github.com/login/oauth/authorize?'
-                           'response_type=code&scope=activity location&'
+                           'response_type=code&scope=repo user&'
                            'redirect_uri={}&client_id={}').format(
                             settings.GITHUB_REDIRECT_URI,
                             settings.GITHUB_CLIENT_ID)

@@ -54,129 +54,132 @@ def update_github(oh_member, github_access_token, github_data):
         print(type(start_date_iso))
         github_data = remove_partial_data(github_data, start_date_iso)
         stop_date_iso = (datetime.utcnow()
-                         + timedelta(seconds=1)).isocalendar()
-        while start_date_iso != stop_date_iso:
-            print(f'processing {oh_member.oh_id}-{oh_member.oh_id} for member {oh_member.oh_id}')
+                         + timedelta(days=7)).isocalendar()
+        # while start_date_iso != stop_date_iso:
+        print(f'processing {oh_member.oh_id}-{oh_member.oh_id} for member {oh_member.oh_id}')
             # query = GITHUB_API_STORY + \
             #          '/{0}-W{1}?trackPoints=true&access_token={2}'.format(
             #             start_date_iso,
             #             stop_date_iso,
             #             github_access_token
             #          )
-            query = """ 
-              { 
-                user(login:"manaswinidas"){
-                url
-                id
-                email
-                bio
-                company
-                companyHTML
-                pullRequests{
-                  totalCount
-                }
-                gists {
-                totalCount
-              }
-                company
-                repositoriesContributedTo(first:10){
-                  totalCount
-                  edges{
-                    node{
-                      name
-                      id
-                      forkCount
-                      issues(first:5){
-                        totalCount
-                        edges{
-                          node{
-                            author{
-                              resourcePath
-                            }
-                            assignees{
-                              totalCount
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-                repositories(isFork:false, first:10){
-                  totalCount
-                  edges{
-                    node{
-                      name
-                      id
-                      forkCount
-                      issues(first:10){
-                        totalCount
-                        edges{
-                          node{
-                            author{
-                              resourcePath
-                            }
-                            assignees{
-                              totalCount
-                            }
-                            participants{
-                              totalCount
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-                forked: repositories(isFork:true, first:10){
-                  totalCount
+        query = """ 
+          { 
+            viewer{
+            login  
+            url
+            id
+            email
+            bio
+            company
+            companyHTML
+            pullRequests{
+              totalCount
+            }
+            gists {
+            totalCount
+          }
+            company
+            repositoriesContributedTo(first:10){
+              totalCount
+              edges{
+                node{
+                  name
+                  id
+                  forkCount
+                  issues(first:5){
+                    totalCount
                     edges{
                       node{
-                        name
-                        id
-                        forkCount
+                        author{
+                          resourcePath
+                        }
+                        assignees{
+                          totalCount
+                        }
                       }
                     }
                   }
-                starredRepositories(first:10) {
-                  totalCount
-                  edges {
-                    node {
-                      name
-                      id
-                      forkCount
+                }
+              }
+            }
+            repositories(isFork:false, first:10){
+              totalCount
+              edges{
+                node{
+                  name
+                  id
+                  forkCount
+                  issues(first:10){
+                    totalCount
+                    edges{
+                      node{
+                        author{
+                          resourcePath
+                        }
+                        assignees{
+                          totalCount
+                        }
+                        participants{
+                          totalCount
+                        }
+                      }
                     }
                   }
                 }
-                following(first:10){
-                  totalCount
-                  nodes{
+              }
+            }
+            forked: repositories(isFork:true, first:10){
+              totalCount
+                edges{
+                  node{
                     name
                     id
-                    url
+                    forkCount
                   }
                 }
-                followers(first:10) {
-                  edges {
-                    node {
-                      name
-                      id
-                      url
-                    }
-                  }
-                } 
               }
-            }      
-            """
+            starredRepositories(first:10) {
+              totalCount
+              edges {
+                node {
+                  name
+                  id
+                  forkCount
+                }
+              }
+            }
+            following(first:10){
+              totalCount
+              nodes{
+                name
+                id
+                url
+              }
+            }
+            followers(first:10) {
+              edges {
+                node {
+                  name
+                  id
+                  url
+                }
+              }
+            } 
+          }
+        }      
+        """
         # Construct the authorization headers for github
         auth_string = "Bearer " + github_access_token 
         auth_header = {"Authorization": auth_string}
         # Make the request via POST, add query string & auth headers
         response = rr.post(GITHUB_GRAPHQL_BASE, json={'query': query}, headers=auth_header, realms=['github'])
         # Debug print
-        print(response.json())
+        # response.json())
         
-        github_data += response.json()
+        github_data = response.json()
+
+        print(github_data)
         
         print('successfully finished update for {}'.format(oh_member.oh_id))
         github_member = oh_member.datasourcemember
@@ -198,7 +201,7 @@ def replace_github(oh_member, github_data):
     metadata = {
         'description':
         'Github activity feed, repository contents and stars data.',
-        'tags': ['demo', 'dummy', 'test'],
+        'tags': ['demo', 'Github', 'test'],
         'updated_at': str(datetime.utcnow()),
         }
     out_file = os.path.join(tmp_directory, 'github-data.json')
