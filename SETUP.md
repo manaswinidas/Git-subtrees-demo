@@ -18,7 +18,7 @@ This is intended to be a detailed local setup document with explanations for thi
     + [Heroku setup](#heroku-setup)
     + [Creating a Heroku application](#creating-a-heroku-application)
     + [App configuration](#app-configuration)
-- [Adding dummy data](#adding-dummy-data)
+- [Adding Twitter data](#adding-twitter-data)
 - [Next steps](#next-steps)
     + [Under the hood](#under-the-hood)
     + [Editing the template](#editing-the-template)
@@ -28,9 +28,9 @@ This is intended to be a detailed local setup document with explanations for thi
 
 In your terminal, navigate to the folder in which you want to store this repo, and enter the command
 
-`$ git clone git@github.com:OpenHumans/oh-data-demo-template.git`
+`$ git clone git@github.com:manaswinidas/oh-twitter-source.git`
 
-This should create a new folder named `oh-data-demo-template` which contains all the code to create the working demo.
+This should create a new folder named `oh-twitter-source` which contains all the code to create the working demo.
 
 ## Setting up local environment
 
@@ -200,9 +200,9 @@ If you make changes you may have to migrate again, to do this run:
 `$ git push heroku master`
 
 
-## Adding dummy data
+## Adding Twitter data
 
-To test out the app as a user, you can add dummy data to your project. First go to the url for your app (https://your-app-name.herokuapp.com), you should see the following page:
+To test out the app as a user, you can add Twitter data to your project. First go to the url for your app (https://your-app-name.herokuapp.com), you should see the following page:
 
 ![](https://cl.ly/1J3X35170e0s/Image%202018-02-16%20at%202.35.57%20AM.png)
 
@@ -214,7 +214,7 @@ Click the button to authorize the demo app to add data to your Open Humans accou
 
 ![](https://cl.ly/04040F1g2k1X/Image%202018-02-16%20at%202.38.37%20AM.png)
 
-You can then click to return to Open Humans to check that the demo data has been successfully added:
+You can then click to return to Open Humans to check that your Twitter data has been successfully added:
 
 ![](https://cl.ly/1r0M1U2d2B1s/Image%202018-02-16%20at%202.40.26%20AM.png)
 
