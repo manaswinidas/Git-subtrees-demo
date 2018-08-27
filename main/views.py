@@ -50,8 +50,7 @@ def complete(request):
         context = {'oh_id': oh_member.oh_id,
                    'oh_proj_page': settings.OH_ACTIVITY_PAGE}
         if not hasattr(oh_member, 'datasourcemember'):
-            twitter_url = ('https://twitter.com/oauth2/authorize?'
-                        #  'response_type=code&scope=repo user&'
+            twitter_url = ('https://api.twitter.com/oauth/authorize?'
                          'redirect_uri={}&client_id={}').format(
                             settings.TWITTER_REDIRECT_URI,
                             settings.TWITTER_CLIENT_ID)
@@ -80,8 +79,7 @@ def dashboard(request):
             allow_update = False
             twitter_member = ''
             download_file = ''
-            connect_url = ('https://twitter.com/login/oauth/authorize?'
-                        #    'response_type=code&scope=repo user&'
+            connect_url = ('https://api.twitter.com/oauth/authorize?'
                            'redirect_uri={}&client_id={}').format(
                             settings.TWITTER_REDIRECT_URI,
                             settings.TWITTER_CLIENT_ID)
@@ -173,14 +171,14 @@ def twitter_code_to_member(code, ohmember):
         # Add headers telling Twitter's API that we want a JSON response (instead of plaintext)
         headers = {'Accept': 'application/json'}
         # Get the access_token from the code
-        req = requests.post('https://twitter.com/login/oauth/access_token',
+        req = requests.post('https://api.twitter.com/oauth2/token',
                             data=data, headers=headers)
         data = req.json()
         print(data)
         # Now that we have a token, let's get the users "profile" back with their token:
         auth_string = 'token {}'.format(data['access_token'])
         token_header = {'Authorization': auth_string}
-        user_data_r = requests.get('https://api.twitter.com/user', headers=token_header)
+        user_data_r = requests.get('https://api.twitter.com/users', headers=token_header)
         user_data = user_data_r.json()
         print(user_data)
         if 'access_token' in data:

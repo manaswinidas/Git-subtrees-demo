@@ -55,7 +55,22 @@ def update_twitter(oh_member, twitter_access_token, twitter_data):
         # while start_date_iso != stop_date_iso:
         print(f'processing {oh_member.oh_id}-{oh_member.oh_id} for member {oh_member.oh_id}')
         query = """ 
-               
+          {
+           graphQLHub
+           twitter {
+           viewer{
+           created_at
+           description
+           id
+           screen_name
+           name
+           profile_image_url
+           url
+           tweets_count
+           followers_count
+            }    
+          }
+        } 
         """
         # Construct the authorization headers for twitter
         auth_string = "Bearer " + twitter_access_token 
