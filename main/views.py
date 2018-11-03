@@ -10,6 +10,7 @@ from .helpers import get_twitter_file, check_update
 from datauploader.tasks import process_twitter
 from ohapi import api
 import arrow
+import tweepy
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -50,13 +51,17 @@ def complete(request):
         context = {'oh_id': oh_member.oh_id,
                    'oh_proj_page': settings.OH_ACTIVITY_PAGE}
         if not hasattr(oh_member, 'datasourcemember'):
-            twitter_url = ('https://twitter.com/oauth2/authorize?'
-                        #  'response_type=code&scope=repo user&'
-                         'redirect_uri={}&client_id={}').format(
-                            settings.TWITTER_REDIRECT_URI,
-                            settings.TWITTER_CLIENT_ID)
-            logger.debug(twitter_url)
-            context['twitter_url'] = twitter_url
+            # Use tweepy to set up auth handler
+            auth = tweepy.OAuthHandler(settings.TWITTER_CLIENT_ID, settings.TWITTER_CLIENT_SECRET, settings.TWITTER_REDIRECT_URI)
+            redirect_url = ''
+            try:
+                redirect_url = auth.get_authorization_url()
+                request.session['request_token'] = auth.request_token
+                print(redirect_url)
+            except tweepy.TweepError:
+                print('Error! Failed to get request token.')
+
+            context['twitter_url'] = redirect_url
             return render(request, 'main/complete.html',
                           context=context)
         return redirect("/dashboard")
@@ -73,24 +78,32 @@ def dashboard(request):
             if download_file == 'error':
                 logout(request)
                 return redirect("/")
-            connect_url = ''
+            redirect_url = ''
             # allow_update = check_update(twitter_member)
             allow_update = True
         else:
             allow_update = False
             twitter_member = ''
             download_file = ''
-            connect_url = ('https://twitter.com/login/oauth/authorize?'
-                        #    'response_type=code&scope=repo user&'
-                           'redirect_uri={}&client_id={}').format(
-                            settings.TWITTER_REDIRECT_URI,
-                            settings.TWITTER_CLIENT_ID)
+
+            # Use tweepy to set up auth handler
+            auth = tweepy.OAuthHandler(settings.TWITTER_CLIENT_ID, settings.TWITTER_CLIENT_SECRET, settings.TWITTER_REDIRECT_URI)
+            redirect_url = ''
+            try:
+                redirect_url = auth.get_authorization_url()
+                request.session['request_token'] = auth.request_token
+                print(redirect_url)
+                print(request.session['request_token'])
+            except tweepy.TweepError:
+                print('Error! Failed to get request token.')
+
+            # connect_url = redirect_url
       
         context = {
             'oh_member': request.user.oh_member,
             'twitter_member': twitter_member,
             'download_file': download_file,
-            'connect_url': connect_url,
+            'connect_url': redirect_url,
             'allow_update': allow_update
         }
         return render(request, 'main/dashboard.html',
@@ -140,9 +153,9 @@ def twitter_complete(request):
     logger.debug("Received user returning from Twitter.")
     # Exchange code for token.
     # This creates an OpenHumansMember and associated user account.
-    code = request.GET.get('code', '')
+    oauth_verifier = request.GET.get('oauth_verifier', '')
     ohmember = request.user.oh_member
-    twitter_member = twitter_code_to_member(code=code, ohmember=ohmember)
+    twitter_member = twitter_code_to_member(oauth_verifier=oauth_verifier, ohmember=ohmember, request=request)
 
     if twitter_member:
         messages.info(request, "Your Twitter account has been connected")
@@ -155,52 +168,59 @@ def twitter_complete(request):
     return redirect('/dashboard')
 
 
-def twitter_code_to_member(code, ohmember):
+def twitter_code_to_member(oauth_verifier, ohmember, request):
     """
     Exchange code for token, use this to create and return Twitter members.
     If a matching twitter exists, update and return it.
     """
-    print("FOOBAR.")
     if settings.TWITTER_CLIENT_SECRET and \
-       settings.TWITTER_CLIENT_ID and code:
-        data = {
-            'grant_type': 'authorization_code',
-            'redirect_uri': settings.TWITTER_REDIRECT_URI,
-            'code': code,
-            'client_id': settings.TWITTER_CLIENT_ID,
-            'client_secret': settings.TWITTER_CLIENT_SECRET
-        }
-        # Add headers telling Twitter's API that we want a JSON response (instead of plaintext)
-        headers = {'Accept': 'application/json'}
-        # Get the access_token from the code
-        req = requests.post('https://twitter.com/login/oauth/access_token',
-                            data=data, headers=headers)
-        data = req.json()
-        print(data)
+       settings.TWITTER_CLIENT_ID and oauth_verifier:
+
+        # Attempt to get access token
+        auth = tweepy.OAuthHandler(settings.TWITTER_CLIENT_ID, settings.TWITTER_CLIENT_SECRET, settings.TWITTER_REDIRECT_URI)
+        auth.request_token = request.session['request_token']
+        del request.session['request_token']
+
+        try:
+            auth.get_access_token(oauth_verifier)
+            print(auth.username)
+            print(auth.access_token)
+            print(auth.access_token_secret)
+        except tweepy.TweepError:
+            print('Error! Failed to get access token.')
+
         # Now that we have a token, let's get the users "profile" back with their token:
-        auth_string = 'token {}'.format(data['access_token'])
-        token_header = {'Authorization': auth_string}
-        user_data_r = requests.get('https://api.twitter.com/user', headers=token_header)
-        user_data = user_data_r.json()
+        api = tweepy.API(auth)
+        user_data = api.verify_credentials()
         print(user_data)
-        if 'access_token' in data:
+        print(user_data.screen_name)
+        # auth_string = 'token {}'.format(data['access_token'])
+        # token_header = {'Authorization': auth_string}
+        # user_data_r = requests.get('https://api.twitter.com/users', headers=token_header)
+        # user_data = user_data_r.json()
+        # print(user_data)
+        if auth.access_token:
             try:
                 twitter_member = DataSourceMember.objects.get(
-                    twitter_id=user_data['id'])
+                    twitter_id=user_data.screen_name)
                 logger.debug('Member {} re-authorized.'.format(
                     twitter_member.twitter_id))
-                twitter_member.access_token = data['access_token']
+                twitter_member.access_token = auth.access_token
+                twitter_member.access_token_secret = auth.access_token_secret
                 print('got old twitter member')
             except DataSourceMember.DoesNotExist:
                 twitter_member = DataSourceMember(
-                    twitter_id=user_data['id'],
-                    access_token=data['access_token'])
+                    twitter_id=user_data.screen_name,
+                    access_token=auth.access_token,
+                    access_token_secret = auth.access_token_secret)
                 twitter_member.user = ohmember
-                logger.debug('Member {} created.'.format(data['access_token']))
+                logger.debug('Member {} created.'.format(auth.access_token))
                 print('make new twitter member')
             twitter_member.save()
 
             return twitter_member
+            # print("access token is there")
+            # return None
 
         elif 'error' in req.json():
             logger.debug('Error in token exchange: {}'.format(req.json()))

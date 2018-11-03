@@ -16,12 +16,14 @@ env-tools = "*"
 redis = "*"
 pyyaml = "*"
 open-humans-api = "*"
+tweepy = "*"
 
 [dev-packages]
 vcrpy = "*"
 freezegun = "*"
 coverage = "*"
 pylint = "*"
+pylint-django = "*"
 
 [requires]
 python_version = "3.6"
