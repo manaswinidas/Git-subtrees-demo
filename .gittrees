@@ -2,3 +2,7 @@
 	url = git@github.com:manaswinidas/oh-twitter-source.git
 	path = oh-twitter-source
 	branch = master
+[subtree "oh-github-source"]
+	url = git@github.com:manaswinidas/oh-github-source.git
+	path = oh-github-source
+	branch = master
