@@ -1,0 +1,4 @@
+[subtree "oh-twitter-source"]
+	url = git@github.com:manaswinidas/oh-twitter-source.git
+	path = oh-twitter-source
+	branch = master
